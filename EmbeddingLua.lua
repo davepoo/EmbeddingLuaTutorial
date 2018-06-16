@@ -1,0 +1,32 @@
+-- Warning: this is not a video on how to script in Lua
+-- This covers how to create and Embed lua into a program
+
+-- Going to use Lua 5.3.4, Windows, CMake & Visual Studio 2015 Community
+
+-- == TODO ==
+-- download lua and use cmake to make a lua application and compile it
+-- create lua state and execute a lua code inline
+-- explaination of the types in lua
+-- explaination of the lua stack
+-- get a global variable from lua
+-- set a global variable to lua
+-- call a lua function
+-- call a lua function and get the result(s)
+-- call a lua function with parameters and get the result(s)
+-- call a c function from lua
+-- call a c function from lua with a return value
+-- call a c function from lua with a return value and parameters
+-- giving data to lua via globals and the registry
+-- calling C functions with upvalues
+-- ?? userdata/lightuserdata
+-- creating your own type for lua
+-- metatables?
+-- uservalues?
+-- ?? getting values from a table in lua
+-- setting values in a table in lua
+-- memory allocation in lua
+-- Runtime type information
+-- Generic Binding of C++/C to Lua
+-- Creating C++ objects in lua
+-- Calling C++ class methods in lua
+
