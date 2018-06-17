@@ -17,12 +17,12 @@
 -- call a c function from lua with a return value
 -- call a c function from lua with a return value and parameters
 -- giving data to lua via globals and the registry
+-- using tables, getting settings values from a table in lua
 -- calling C functions with upvalues
 -- ?? userdata/lightuserdata
--- creating your own type for lua
--- metatables?
+-- creating your own type for lua, userdata
 -- uservalues?
--- ?? getting values from a table in lua
+-- metatables?
 -- setting values in a table in lua
 -- memory allocation in lua
 -- Runtime type information
