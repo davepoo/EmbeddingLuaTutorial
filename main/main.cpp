@@ -1,5 +1,6 @@
 #include <cstdio>
 #include "lua.hpp"
+#include <assert.h>
 
 int main()
 {
@@ -44,11 +45,11 @@ int main()
 
 		lua_remove(L, 2);	//this should remove 52 from the stack
 
-		// 42 - -2
-		// 62 - -1
+							// 42 - -2
+							// 62 - -1
 
-		// 42 - 1
-		// 62 - 2
+							// 42 - 1
+							// 62 - 2
 
 		lua_Number xxx = lua_tonumber(L, 2);
 		printf("position 2 is %d\n", (int)xxx);
@@ -181,6 +182,39 @@ int main()
 		{
 			printf("We DIDNT get a sprite from Lua\n");
 		}
+		lua_close(L);
+	}
+
+	printf("---- tables -----\n");
+
+	{
+		constexpr char* LUA_FILE = R"(
+		x = { dave = "busy", ian = "idle" }
+		)";
+
+		lua_State* L = luaL_newstate();
+		luaL_dostring(L, LUA_FILE);
+
+		lua_getglobal(L, "x");
+		lua_pushstring(L, "dave");
+		lua_gettable(L, -2);
+		const char* daveIs = lua_tostring(L, -1);
+		printf("daveIs = %s\n", daveIs);
+
+		lua_getglobal(L, "x");
+		lua_getfield(L, -1, "ian");
+		const char* ianIs = lua_tostring(L, -1);
+		printf("ianIs = %s\n", ianIs);
+
+		lua_getglobal(L, "x");
+		lua_pushstring(L, "sleeping");
+		lua_setfield(L, -2, "john");
+
+		lua_getglobal(L, "x");
+		lua_getfield(L, -1, "john");
+		const char* johnIs = lua_tostring(L, -1);
+		printf("johnIs = %s\n", johnIs);
+
 		lua_close(L);
 	}
 }
