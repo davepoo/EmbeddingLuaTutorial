@@ -16,17 +16,18 @@
 -- call a c function from lua
 -- call a c function from lua with a return value
 -- call a c function from lua with a return value and parameters
--- giving data to lua via globals and the registry
--- using tables, getting settings values from a table in lua
--- calling C functions with upvalues
--- ?? userdata/lightuserdata
 -- creating your own type for lua, userdata
--- uservalues?
--- metatables?
+-- Creating C++ objects in lua
+-- Calling C++ class methods in lua
+-- using tables, getting settings values from a table in lua
 -- setting values in a table in lua
+-- giving data to lua via globals
+-- metatables
+-- metatables on usersdata
+-- the registry
+-- calling C functions with upvalues
+-- ?? lightuserdata
+-- uservalues?
 -- memory allocation in lua
 -- Runtime type information
 -- Generic Binding of C++/C to Lua
--- Creating C++ objects in lua
--- Calling C++ class methods in lua
-
