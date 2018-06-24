@@ -399,4 +399,122 @@ int main()
 
 		assert(numberOfSpritesExisting == 0);
 	}
+
+	printf("---- Object Oriented Access -----\n");
+	{
+		static int numberOfSpritesExisting = 0;
+
+		struct Sprite
+		{
+			int x;
+			int y;
+
+			Sprite() : x(0), y(0)
+			{
+				numberOfSpritesExisting++;
+			}
+
+			~Sprite()
+			{
+				numberOfSpritesExisting--;
+			}
+
+			void Move(int velX, int velY)
+			{
+				x += velX;
+				y += velY;
+			}
+
+			void Draw()
+			{
+				printf("sprite(%p): x = %d, y = %d\n", this, x, y);
+			}
+		};
+
+		auto CreateSprite = [](lua_State* L) -> int
+		{
+			void* pointerToASprite = lua_newuserdata(L, sizeof(Sprite));
+			new (pointerToASprite) Sprite();
+			luaL_getmetatable(L, "SpriteMetaTable");
+			assert(lua_istable(L, -1));
+			lua_setmetatable(L, -2);
+			return 1;
+		};
+
+		auto DestroySprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -1);
+			sprite->~Sprite();
+			return 0;
+		};
+
+		auto MoveSprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -3);
+			lua_Number velX = lua_tonumber(L, -2);
+			lua_Number velY = lua_tonumber(L, -1);
+			sprite->Move((int)velX, (int)velY);
+			return 0;
+		};
+
+		auto DrawSprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -1);
+			sprite->Draw();
+			return 0;
+		};
+
+		constexpr char* LUA_FILE = R"(
+		sprite = Sprite.new()
+		sprite:Move( 5, 7 )		-- Sprite.Move( sprite, 5, 7 )
+		sprite:Draw()
+		sprite:Move( 1, 2 )
+		sprite:Draw()
+
+		sprite2 = Sprite.new()
+		sprite2:Move( 3, 3 )
+		sprite2:Draw()
+
+		-- sprite	-> sprite is a userdatum
+		--		has a metatable called SpriteMetaTable
+		--			dont have Move(), use the __index metamethod
+		--			__index metamethod is a table which is Sprite
+		--			Sprite has a field called Move(), invoke that
+		--			Move() is a c function
+		--			invoke, pass the userdatum as the first parameter.
+		)";
+
+		lua_State* L = luaL_newstate();
+
+		lua_newtable(L);
+		int spriteTableIdx = lua_gettop(L);
+		lua_pushvalue(L, spriteTableIdx);
+		lua_setglobal(L, "Sprite");
+
+		lua_pushcfunction(L, CreateSprite);
+		lua_setfield(L, -2, "new");
+		lua_pushcfunction(L, MoveSprite);
+		lua_setfield(L, -2, "Move");
+		lua_pushcfunction(L, DrawSprite);
+		lua_setfield(L, -2, "Draw");
+
+		luaL_newmetatable(L, "SpriteMetaTable");
+		lua_pushstring(L, "__gc");
+		lua_pushcfunction(L, DestroySprite);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "__index");
+		lua_pushvalue(L, spriteTableIdx);
+		lua_settable(L, -3);
+
+		int doResult = luaL_dostring(L, LUA_FILE);
+		if (doResult != LUA_OK)
+		{
+			printf("Error: %s\n", lua_tostring(L, -1));
+		}
+
+		lua_close(L);
+
+		assert(numberOfSpritesExisting == 0);
+	}
 }
