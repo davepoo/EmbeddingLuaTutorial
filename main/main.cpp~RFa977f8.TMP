@@ -518,7 +518,7 @@ int main()
 		assert(numberOfSpritesExisting == 0);
 	}
 
-	printf("---- Reading Object Properties -----\n");
+	printf("---- Object Oriented Access 2 -----\n");
 	{
 		static int numberOfSpritesExisting = 0;
 
@@ -582,37 +582,38 @@ int main()
 			return 0;
 		};
 
-		auto SpriteIndex = [](lua_State* L) -> int
+		auto SpriteProperty = [](lua_State* L) -> int
 		{
 			assert(lua_isuserdata(L, -2));
 			assert(lua_isstring(L, -1));
-
-			Sprite* sprite = (Sprite*)lua_touserdata(L, -2);
 			const char* index = lua_tostring(L, -1);
-			if (strcmp(index, "x") == 0)
+			if (strcmp(index, "x") == 0 )
 			{
+				Sprite* sprite = (Sprite*)lua_touserdata(L, 1);
 				lua_pushnumber(L, sprite->x);
 				return 1;
 			}
 			else if (strcmp(index, "y") == 0)
 			{
+				Sprite* sprite = (Sprite*)lua_touserdata(L, 1);
 				lua_pushnumber(L, sprite->y);
 				return 1;
 			}
 			else
 			{
+				//get the function from the global Sprite table
 				lua_getglobal(L, "Sprite");
 				lua_pushstring(L, index);
-				lua_rawget(L, -2);
+				lua_rawget(L, -1);				
 				return 1;
 			}
 		};
 
 		constexpr char* LUA_FILE = R"(
 		sprite = Sprite.new()
-		sprite:Move( 6, 7 )		-- Sprite.Move( sprite, 6, 7 )
-		sprite:Draw()
 		temp_x = sprite.x
+		sprite:Move( 5, 7 )		-- Sprite.Move( sprite, 5, 7 )
+		sprite:Draw()	
 		)";
 
 		lua_State* L = luaL_newstate();
@@ -635,7 +636,7 @@ int main()
 		lua_settable(L, -3);
 
 		lua_pushstring(L, "__index");
-		lua_pushcfunction(L, SpriteIndex);
+		lua_pushcfunction(L, SpriteProperty);
 		lua_settable(L, -3);
 
 		int doResult = luaL_dostring(L, LUA_FILE);
@@ -644,13 +645,12 @@ int main()
 			printf("Error: %s\n", lua_tostring(L, -1));
 		}
 
-		lua_getglobal(L, "temp_x");
+		lua_getglobal(L, "temp_x ");
 		lua_Number temp_x = lua_tonumber(L, -1);
-		assert(temp_x == 6);
+		assert(temp_x == 5);
 
 		lua_close(L);
 
 		assert(numberOfSpritesExisting == 0);
 	}
-
 }
