@@ -817,4 +817,184 @@ int main()
 
 		assert(numberOfSpritesExisting == 0);
 	}
+
+	printf("---- user values -----\n");
+	{
+		static int numberOfSpritesExisting = 0;
+
+		struct Sprite
+		{
+			int x;
+			int y;
+
+			Sprite() : x(0), y(0)
+			{
+				numberOfSpritesExisting++;
+			}
+
+			~Sprite()
+			{
+				numberOfSpritesExisting--;
+			}
+
+			void Move(int velX, int velY)
+			{
+				x += velX;
+				y += velY;
+			}
+
+			void Draw()
+			{
+				printf("sprite(%p): x = %d, y = %d\n", this, x, y);
+			}
+		};
+
+		auto CreateSprite = [](lua_State* L) -> int
+		{
+			void* pointerToASprite = lua_newuserdata(L, sizeof(Sprite));
+			new (pointerToASprite) Sprite();
+			luaL_getmetatable(L, "SpriteMetaTable");
+			assert(lua_istable(L, -1));
+			lua_setmetatable(L, -2);
+
+			lua_newtable(L);
+			lua_setuservalue(L, 1);
+
+			return 1;
+		};
+
+		auto DestroySprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -1);
+			sprite->~Sprite();
+			return 0;
+		};
+
+		auto MoveSprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -3);
+			lua_Number velX = lua_tonumber(L, -2);
+			lua_Number velY = lua_tonumber(L, -1);
+			sprite->Move((int)velX, (int)velY);
+			return 0;
+		};
+
+		auto DrawSprite = [](lua_State* L) -> int
+		{
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -1);
+			sprite->Draw();
+			return 0;
+		};
+
+		auto SpriteIndex = [](lua_State* L) -> int
+		{
+			assert(lua_isuserdata(L, -2));	//1
+			assert(lua_isstring(L, -1));	//2
+
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -2);
+			const char* index = lua_tostring(L, -1);
+			if (strcmp(index, "x") == 0)
+			{
+				lua_pushnumber(L, sprite->x);
+				return 1;
+			}
+			else if (strcmp(index, "y") == 0)
+			{
+				lua_pushnumber(L, sprite->y);
+				return 1;
+			}
+			else
+			{
+				lua_getuservalue(L, 1);
+				lua_pushvalue(L, 2);
+				lua_gettable(L, -2);
+				if (lua_isnil(L, -1))
+				{
+					lua_getglobal(L, "Sprite");
+					lua_pushstring(L, index);
+					lua_rawget(L, -2);
+				}
+				return 1;
+			}
+		};
+
+		auto SpriteNewIndex = [](lua_State* L) -> int
+		{
+			assert(lua_isuserdata(L, -3));  //1
+			assert(lua_isstring(L, -2));	//2
+			// -1 - value we want to set	//3
+
+			Sprite* sprite = (Sprite*)lua_touserdata(L, -3);
+			const char* index = lua_tostring(L, -2);
+			if (strcmp(index, "x") == 0)
+			{
+				sprite->x = (int)lua_tonumber(L, -1);
+			}
+			else if (strcmp(index, "y") == 0)
+			{
+				sprite->y = (int)lua_tonumber(L, -1);
+			}
+			else
+			{
+				lua_getuservalue(L, 1);	//1
+				lua_pushvalue(L, 2);	//2
+				lua_pushvalue(L, 3);	//3
+				lua_settable(L, -3);	//1[2] = 3
+			}
+
+			return 0;
+		};
+
+		constexpr char* LUA_FILE = R"(
+		sprite = Sprite.new()
+		sprite:Move( 6, 7 )		-- Sprite.Move( sprite, 6, 7 )
+		sprite:Draw()
+		sprite.y = 10
+		sprite.zzz = 99
+		sprite.x = sprite.zzz
+		temp_x = sprite.x
+		sprite:Draw()
+		)";
+
+		lua_State* L = luaL_newstate();
+
+		lua_newtable(L);
+		int spriteTableIdx = lua_gettop(L);
+		lua_pushvalue(L, spriteTableIdx);
+		lua_setglobal(L, "Sprite");
+
+		lua_pushcfunction(L, CreateSprite);
+		lua_setfield(L, -2, "new");
+		lua_pushcfunction(L, MoveSprite);
+		lua_setfield(L, -2, "Move");
+		lua_pushcfunction(L, DrawSprite);
+		lua_setfield(L, -2, "Draw");
+
+		luaL_newmetatable(L, "SpriteMetaTable");
+		lua_pushstring(L, "__gc");
+		lua_pushcfunction(L, DestroySprite);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "__index");
+		lua_pushcfunction(L, SpriteIndex);
+		lua_settable(L, -3);
+
+		lua_pushstring(L, "__newindex");
+		lua_pushcfunction(L, SpriteNewIndex);
+		lua_settable(L, -3);
+
+		int doResult = luaL_dostring(L, LUA_FILE);
+		if (doResult != LUA_OK)
+		{
+			printf("Error: %s\n", lua_tostring(L, -1));
+		}
+
+		lua_getglobal(L, "temp_x");
+		lua_Number temp_x = lua_tonumber(L, -1);
+		assert(temp_x == 99);
+
+		lua_close(L);
+
+		assert(numberOfSpritesExisting == 0);
+	}
 }
