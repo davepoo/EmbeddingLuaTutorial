@@ -3,7 +3,7 @@
     - Bind Native C++ Object and use them in Lua
     - Assume you don't know anything about the Lua C API
     - Learning by Doing
-    - Code is all in github 
+    - Code is all in github https://github.com/davepoo/EmbeddingLuaTutorial
 ]]
 --[[
     - You should know
