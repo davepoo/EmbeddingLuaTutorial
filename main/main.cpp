@@ -1021,6 +1021,7 @@ int main()
 
 	printf("---- lua arena memory allocation -----\n");
 	{
+		/*! \brief WARNING: This allocator does not align memory correctly (yet)!!! */
 		struct ArenaAllocator
 		{
 			void* m_begin;
