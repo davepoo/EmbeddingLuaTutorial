@@ -950,52 +950,60 @@ int main()
 		constexpr char* LUA_FILE = R"(
 		sprite = Sprite.new()
 		sprite:Move( 6, 7 )		-- Sprite.Move( sprite, 6, 7 )
-		sprite:Draw()
+		--sprite:Draw()
 		sprite.y = 10
 		sprite.zzz = 99
 		sprite.x = sprite.zzz
 		temp_x = sprite.x
-		sprite:Draw()
+		--sprite:Draw()
 		)";
 
-		lua_State* L = luaL_newstate();
-
-		lua_newtable(L);
-		int spriteTableIdx = lua_gettop(L);
-		lua_pushvalue(L, spriteTableIdx);
-		lua_setglobal(L, "Sprite");
-
-		lua_pushcfunction(L, CreateSprite);
-		lua_setfield(L, -2, "new");
-		lua_pushcfunction(L, MoveSprite);
-		lua_setfield(L, -2, "Move");
-		lua_pushcfunction(L, DrawSprite);
-		lua_setfield(L, -2, "Draw");
-
-		luaL_newmetatable(L, "SpriteMetaTable");
-		lua_pushstring(L, "__gc");
-		lua_pushcfunction(L, DestroySprite);
-		lua_settable(L, -3);
-
-		lua_pushstring(L, "__index");
-		lua_pushcfunction(L, SpriteIndex);
-		lua_settable(L, -3);
-
-		lua_pushstring(L, "__newindex");
-		lua_pushcfunction(L, SpriteNewIndex);
-		lua_settable(L, -3);
-
-		int doResult = luaL_dostring(L, LUA_FILE);
-		if (doResult != LUA_OK)
+		constexpr int POOL_SIZE = 1024 * 20;
+		char memory[POOL_SIZE];
+		ArenaAllocator pool(memory, &memory[POOL_SIZE - 1]);
+		//for (int i = 0; i < 50000; i++)	//comment this line in for benchmarking the mem allocator
 		{
-			printf("Error: %s\n", lua_tostring(L, -1));
+			pool.Reset();
+			lua_State* L = lua_newstate(ArenaAllocator::l_alloc, &pool);
+			//lua_State* L = luaL_newstate();
+
+			lua_newtable(L);
+			int spriteTableIdx = lua_gettop(L);
+			lua_pushvalue(L, spriteTableIdx);
+			lua_setglobal(L, "Sprite");
+
+			lua_pushcfunction(L, CreateSprite);
+			lua_setfield(L, -2, "new");
+			lua_pushcfunction(L, MoveSprite);
+			lua_setfield(L, -2, "Move");
+			lua_pushcfunction(L, DrawSprite);
+			lua_setfield(L, -2, "Draw");
+
+			luaL_newmetatable(L, "SpriteMetaTable");
+			lua_pushstring(L, "__gc");
+			lua_pushcfunction(L, DestroySprite);
+			lua_settable(L, -3);
+
+			lua_pushstring(L, "__index");
+			lua_pushcfunction(L, SpriteIndex);
+			lua_settable(L, -3);
+
+			lua_pushstring(L, "__newindex");
+			lua_pushcfunction(L, SpriteNewIndex);
+			lua_settable(L, -3);
+
+			int doResult = luaL_dostring(L, LUA_FILE);
+			if (doResult != LUA_OK)
+			{
+				printf("Error: %s\n", lua_tostring(L, -1));
+			}
+
+			lua_getglobal(L, "temp_x");
+			lua_Number temp_x = lua_tonumber(L, -1);
+			assert(temp_x == 99);
+
+			lua_close(L);
 		}
-
-		lua_getglobal(L, "temp_x");
-		lua_Number temp_x = lua_tonumber(L, -1);
-		assert(temp_x == 99);
-
-		lua_close(L);
 
 		assert(numberOfSpritesExisting == 0);
 	}
