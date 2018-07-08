@@ -5,6 +5,7 @@
 #include <string.h>
 #include <new>
 #include <vector>
+#include "AutomatedBinding.h"
 
 int main()
 {
@@ -1275,4 +1276,6 @@ int main()
 		assert(spriteManager.numberOfSpritesExisting == 0);
 		assert(spriteManager.numberOfSpritesMade == 3);
 	}
+
+	AutomatedBindingTutorial();
 }
