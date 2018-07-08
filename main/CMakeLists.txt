@@ -24,3 +24,6 @@ add_executable( LuaTutorial
 	)
 
 target_link_libraries( LuaTutorial PUBLIC LuaLib )
+
+find_package(RTTR CONFIG REQUIRED Core)
+target_link_libraries(LuaTutorial PUBLIC RTTR::Core_Lib)     # rttr as static library
