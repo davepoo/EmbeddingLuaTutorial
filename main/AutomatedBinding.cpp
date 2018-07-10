@@ -18,37 +18,16 @@ void AutomatedBindingTutorial()
 
 	/*! \brief The Lua script, you would probably load this data from a .lua file. */
 	constexpr char* LUA_SCRIPT = R"(
-		x = 47
+		-- this is a lua script
 		)";
 
 	//execute the lua script
 	int doResult = luaL_dostring(L, LUA_SCRIPT);
-	if (doResult == LUA_OK)
-	{
-		lua_getglobal(L, "x");
-		lua_Number x = lua_tonumber(L, 1);
-		printf("lua says x = %d\n", (int)x);
-	}
-	else
+	if (doResult != LUA_OK)
 	{
 		printf("Error: %s\n", lua_tostring(L, -1));
 	}
 
 	//close the Lua state
 	lua_close(L);
-}
-
-// *** Methods for Sprite class ***
-
-Sprite::Sprite() : x(0), y(0) {}
-
-void Sprite::Move(int velX, int velY)
-{
-	x += velX;
-	y += velY;
-}
-
-void Sprite::Draw()
-{
-	printf("sprite(%p): x = %d, y = %d\n", this, x, y);
 }
