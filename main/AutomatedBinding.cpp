@@ -10,14 +10,66 @@ constexpr char* LUA_SCRIPT = R"(
 		-- this is a lua script
 		Global.HelloWorld()
 		Global.HelloWorld2()
-		Global.HelloWorld3()
+		Global.HelloWorld3( 42, 99, 111 )
 		)";
 
 int CallGlobalFromLua(lua_State* L)
 {
 	rttr::method* m = (rttr::method*)lua_touserdata(L, lua_upvalueindex(1));
 	rttr::method& methodToInvoke(*m);
-	methodToInvoke.invoke({});
+	rttr::array_range<rttr::parameter_info> nativeParams = methodToInvoke.get_parameter_infos();
+	int numLuaArgs = lua_gettop(L);
+	int numNativeArgs = (int)nativeParams.size();
+	if (numLuaArgs != numNativeArgs)
+	{
+		printf("Error calling native function '%s', wrong number of args, expected %d, got %d\n",
+			methodToInvoke.get_name().to_string().c_str(), numNativeArgs, numLuaArgs );
+		assert(numLuaArgs == numNativeArgs);
+	}
+	union PassByValue
+	{
+		int intVal;
+		short shortVal;
+	};
+
+	std::vector<PassByValue> pbv(numNativeArgs);
+	std::vector<rttr::argument> nativeArgs(numNativeArgs);
+	auto nativeParamsIt = nativeParams.begin();
+	for (int i = 0; i < numLuaArgs; i++, nativeParamsIt++)
+	{
+		const rttr::type nativeParamType = nativeParamsIt->get_type();
+		int luaArgIdx = i + 1;
+		int luaType = lua_type(L, luaArgIdx);
+		switch (luaType)
+		{
+		case LUA_TNUMBER:
+			if (nativeParamType == rttr::type::get<int>())
+			{
+				pbv[i].intVal = (int)lua_tonumber(L, luaArgIdx);
+				nativeArgs[i] = pbv[i].intVal;
+			}
+			else if (nativeParamType == rttr::type::get<short>())
+			{
+				pbv[i].shortVal = (short)lua_tonumber(L, luaArgIdx);
+				nativeArgs[i] = pbv[i].shortVal;
+			}
+			else
+			{
+				printf("unrecognised parameter type '%s'\n", nativeParamType.get_name().to_string().c_str());
+				assert(false);
+			}
+			break;
+		default:
+			assert(false); //dont know this type.
+			break;
+		}
+	}
+	rttr::variant result = methodToInvoke.invoke_variadic({}, nativeArgs);
+	if (result.is_valid() == false)
+	{
+		printf("unable to invoke '%s'\n", methodToInvoke.get_name().to_string().c_str());
+		assert(false);
+	}
 	return 0;
 }
 

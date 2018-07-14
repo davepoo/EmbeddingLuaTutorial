@@ -16,9 +16,9 @@ void HelloWorld2()
 	printf("Hello, World 2\n");
 }
 
-void HelloWorld3()
+void HelloWorld3( int x, short y, int z )
 {
-	printf("Hello, World 3\n");
+	printf("Hello, World 3 (%d, %d, %d)\n", x, y, z);
 }
 
 RTTR_REGISTRATION
