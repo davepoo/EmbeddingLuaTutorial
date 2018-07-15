@@ -10,7 +10,9 @@ constexpr char* LUA_SCRIPT = R"(
 		-- this is a lua script
 		Global.HelloWorld()
 		Global.HelloWorld2()
-		Global.HelloWorld3( 42, 99, 111 )
+		local c = Global.Add( 42, 43 )
+		local d = Global.Mul( c, 2 )
+		Global.HelloWorld3( d, 99, 111 )
 		)";
 
 int CallGlobalFromLua(lua_State* L)
@@ -65,12 +67,32 @@ int CallGlobalFromLua(lua_State* L)
 		}
 	}
 	rttr::variant result = methodToInvoke.invoke_variadic({}, nativeArgs);
+	int numberOfReturnValues = 0;
 	if (result.is_valid() == false)
 	{
-		printf("unable to invoke '%s'\n", methodToInvoke.get_name().to_string().c_str());
-		assert(false);
+		luaL_error(L, "unable to invoke '%s'\n", methodToInvoke.get_name().to_string().c_str());
 	}
-	return 0;
+	else if (result.is_type<void>() == false)
+	{
+		if (result.is_type<int>())
+		{
+			lua_pushnumber(L, result.get_value<int>());
+			numberOfReturnValues++;
+		}
+		else if (result.is_type<short>())
+		{
+			lua_pushnumber(L, result.get_value<short>());
+			numberOfReturnValues++;
+		}
+		else
+		{
+			luaL_error(L,
+				"unhandled return type '%s' from native method '%s'\n",
+				result.get_type().get_name().to_string().c_str(),
+				methodToInvoke.get_name().to_string().c_str());
+		}
+	}
+	return numberOfReturnValues;
 }
 
 void AutomatedBindingTutorial()
