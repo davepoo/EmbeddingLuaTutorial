@@ -13,6 +13,7 @@ constexpr char* LUA_SCRIPT = R"(
 		local c = Global.Add( 42, 43 )
 		local d = Global.Mul( c, 2 )
 		Global.HelloWorld3( d, 99, 111 )
+		local spr = Sprite.new()
 		)";
 
 int CallGlobalFromLua(lua_State* L)
@@ -95,6 +96,20 @@ int CallGlobalFromLua(lua_State* L)
 	return numberOfReturnValues;
 }
 
+int CreateUserDatum(lua_State* L)
+{
+ 	rttr::type& typeToCreate = *(rttr::type*)lua_touserdata(L, lua_upvalueindex(1));
+
+	void* ud = lua_newuserdata(L, sizeof(rttr::variant) );
+	new (ud) rttr::variant(typeToCreate.create());
+	//rttr::variant& variant = *(rttr::variant*)ud;
+
+	lua_newtable(L);
+	lua_setuservalue(L, 1);
+
+	return 1;	//return the userdatum
+}
+
 void AutomatedBindingTutorial()
 {
 	printf("---- automated binding using run time type info -----\n");
@@ -111,6 +126,7 @@ void AutomatedBindingTutorial()
 	lua_pushvalue(L, -1);
 	lua_setglobal(L, "Global");
 
+	//binding global methods
 	lua_pushvalue(L, -1);											//1
 	for (auto& method : rttr::type::get_global_methods() )
 	{
@@ -118,6 +134,22 @@ void AutomatedBindingTutorial()
 		lua_pushlightuserdata(L, (void*)&method);
 		lua_pushcclosure(L, CallGlobalFromLua, 1);					//3 
 		lua_settable(L, -3);										//1[2] = 3
+	}
+
+	//binding classes to Lua
+	for (auto& classToRegister : rttr::type::get_types())
+	{
+		if (classToRegister.is_class())
+		{
+			lua_newtable(L);
+			lua_pushvalue(L, -1);
+			lua_setglobal(L, classToRegister.get_name().to_string().c_str());
+
+			lua_pushvalue(L, -1);
+			lua_pushlightuserdata(L, (void*)&classToRegister);
+			lua_pushcclosure(L, CreateUserDatum, 1);
+			lua_setfield(L, -2, "new");
+		}
 	}
 
 	//execute the lua script
