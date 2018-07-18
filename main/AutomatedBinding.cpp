@@ -96,6 +96,14 @@ int CallGlobalFromLua(lua_State* L)
 	return numberOfReturnValues;
 }
 
+/*! \return The meta table name for type t */
+std::string MetaTableName( const rttr::type& t )
+{
+	std::string metaTableName = t.get_name().to_string();
+	metaTableName.append("_MT_");
+	return metaTableName;
+}
+
 int CreateUserDatum(lua_State* L)
 {
  	rttr::type& typeToCreate = *(rttr::type*)lua_touserdata(L, lua_upvalueindex(1));
@@ -104,10 +112,20 @@ int CreateUserDatum(lua_State* L)
 	new (ud) rttr::variant(typeToCreate.create());
 	//rttr::variant& variant = *(rttr::variant*)ud;
 
+	luaL_getmetatable(L, MetaTableName(typeToCreate).c_str());
+	lua_setmetatable(L, 1);
+
 	lua_newtable(L);
 	lua_setuservalue(L, 1);
 
 	return 1;	//return the userdatum
+}
+
+int DestroyUserDatum(lua_State* L)
+{
+	rttr::variant* ud = (rttr::variant*)lua_touserdata(L, -1);
+	ud->~variant();
+	return 0;
 }
 
 void AutomatedBindingTutorial()
@@ -149,6 +167,12 @@ void AutomatedBindingTutorial()
 			lua_pushlightuserdata(L, (void*)&classToRegister);
 			lua_pushcclosure(L, CreateUserDatum, 1);
 			lua_setfield(L, -2, "new");
+
+			//create the metatable & metamethods for this type
+			luaL_newmetatable(L, MetaTableName(classToRegister).c_str());
+			lua_pushstring(L, "__gc");
+			lua_pushcfunction(L, DestroyUserDatum);
+			lua_settable(L, -3);
 		}
 	}
 
