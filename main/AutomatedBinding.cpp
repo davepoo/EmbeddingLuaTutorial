@@ -14,20 +14,30 @@ constexpr char* LUA_SCRIPT = R"(
 		local d = Global.Mul( c, 2 )
 		Global.HelloWorld3( d, 99, 111 )
 		local spr = Sprite.new()
+		local xplusy = spr:Move( 1, 2 )
+		spr:Move( xplusy, xplusy )
 		spr:Draw()
 		)";
 
-int CallGlobalFromLua(lua_State* L)
+/*! \brief Invoke #methodToInvoke on #object, passing the arguments to the method from Lua and leave the result on the Lua stack.
+*	- Assumes that the top of the stack downwards is filled with the parameters to the method we are invoking.
+*	- To call a free function pass rttr::instance = {} as #object
+* \return the number of values left on the Lua stack */
+int InvokeMethod( lua_State* L, rttr::method& methodToInvoke, rttr::instance& object )
 {
-	rttr::method* m = (rttr::method*)lua_touserdata(L, lua_upvalueindex(1));
-	rttr::method& methodToInvoke(*m);
 	rttr::array_range<rttr::parameter_info> nativeParams = methodToInvoke.get_parameter_infos();
-	int numLuaArgs = lua_gettop(L);
+	int luaParamsStackOffset = 0;
 	int numNativeArgs = (int)nativeParams.size();
+	int numLuaArgs = lua_gettop(L);
+	if (numLuaArgs > numNativeArgs)
+	{
+		luaParamsStackOffset = numLuaArgs - numNativeArgs;
+		numLuaArgs = numNativeArgs;
+	}
 	if (numLuaArgs != numNativeArgs)
 	{
 		printf("Error calling native function '%s', wrong number of args, expected %d, got %d\n",
-			methodToInvoke.get_name().to_string().c_str(), numNativeArgs, numLuaArgs );
+			methodToInvoke.get_name().to_string().c_str(), numNativeArgs, numLuaArgs);
 		assert(numLuaArgs == numNativeArgs);
 	}
 	union PassByValue
@@ -42,7 +52,7 @@ int CallGlobalFromLua(lua_State* L)
 	for (int i = 0; i < numLuaArgs; i++, nativeParamsIt++)
 	{
 		const rttr::type nativeParamType = nativeParamsIt->get_type();
-		int luaArgIdx = i + 1;
+		int luaArgIdx = i + 1 + luaParamsStackOffset;
 		int luaType = lua_type(L, luaArgIdx);
 		switch (luaType)
 		{
@@ -64,11 +74,14 @@ int CallGlobalFromLua(lua_State* L)
 			}
 			break;
 		default:
-			assert(false); //dont know this type.
+			luaL_error(L, "Don't know this lua type '%s', parameter %d when calling '%s'", 
+				lua_typename(L, luaType), 
+				i,
+				methodToInvoke.get_name().to_string().c_str());
 			break;
 		}
 	}
-	rttr::variant result = methodToInvoke.invoke_variadic({}, nativeArgs);
+	rttr::variant result = methodToInvoke.invoke_variadic(object, nativeArgs);
 	int numberOfReturnValues = 0;
 	if (result.is_valid() == false)
 	{
@@ -95,6 +108,14 @@ int CallGlobalFromLua(lua_State* L)
 		}
 	}
 	return numberOfReturnValues;
+}
+
+int CallGlobalFromLua(lua_State* L)
+{
+	rttr::method* m = (rttr::method*)lua_touserdata(L, lua_upvalueindex(1));
+	rttr::method& methodToInvoke(*m);
+	rttr::instance object = {};
+	return InvokeMethod(L, methodToInvoke, object);
 }
 
 /*! \return The meta table name for type t */
@@ -139,15 +160,8 @@ int InvokeFuncOnUserDatum(lua_State* L)
 	}
 
 	rttr::variant& ud = *(rttr::variant*)lua_touserdata(L, 1);
-	luaL_error(L, "TODO: need to pass parameters to native native method '%s'", m.get_name().to_string().c_str());
-	rttr::variant result = m.invoke(ud);
-	if (result.is_valid() == false)
-	{
-		luaL_error(L, "Failed to invoke native native method '%s'", m.get_name().to_string().c_str());
-	}
-
-	luaL_error(L, "TODO: need to return values from native native method '%s'", m.get_name().to_string().c_str());
-	return 0;
+	rttr::instance object(ud);
+	return InvokeMethod(L, m, object);
 }
 
 int IndexUserDatum(lua_State* L)

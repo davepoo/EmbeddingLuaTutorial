@@ -39,10 +39,11 @@ struct Sprite
 	Sprite() : x(0), y(0) {}
 	~Sprite() {}
 
-	void Move(int velX, int velY)
+	int Move(int velX, int velY)
 	{
 		x += velX;
 		y += velY;
+		return x + y;
 	}
 
 	void Draw()
