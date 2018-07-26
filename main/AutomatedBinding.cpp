@@ -15,9 +15,41 @@ constexpr char* LUA_SCRIPT = R"(
 		Global.HelloWorld3( d, 99, 111 )
 		local spr = Sprite.new()
 		local xplusy = spr:Move( 1, 2 )
-		spr:Move( xplusy, xplusy )
+		local x = spr.x
+		spr:Move( xplusy + x, xplusy )
 		spr:Draw()
 		)";
+
+/*! \brief Takes the result and puts it onto the Lua stack
+*	\return the number of values left on the stack. */
+int ToLua( lua_State* L, rttr::variant& result )
+{
+	int numberOfReturnValues = 0;
+	if (result.is_valid() == false)
+	{
+		luaL_error(L, "unable to send to Lua type '%s'\n", result.get_type().get_name().to_string().c_str());
+	}
+	else if (result.is_type<void>() == false)
+	{
+		if (result.is_type<int>())
+		{
+			lua_pushnumber(L, result.get_value<int>());
+			numberOfReturnValues++;
+		}
+		else if (result.is_type<short>())
+		{
+			lua_pushnumber(L, result.get_value<short>());
+			numberOfReturnValues++;
+		}
+		else
+		{
+			luaL_error(L,
+				"unhandled type '%s' being sent to Lua.\n",
+				result.get_type().get_name().to_string().c_str());
+		}
+	}
+	return numberOfReturnValues;
+}
 
 /*! \brief Invoke #methodToInvoke on #object, passing the arguments to the method from Lua and leave the result on the Lua stack.
 *	- Assumes that the top of the stack downwards is filled with the parameters to the method we are invoking.
@@ -82,32 +114,7 @@ int InvokeMethod( lua_State* L, rttr::method& methodToInvoke, rttr::instance& ob
 		}
 	}
 	rttr::variant result = methodToInvoke.invoke_variadic(object, nativeArgs);
-	int numberOfReturnValues = 0;
-	if (result.is_valid() == false)
-	{
-		luaL_error(L, "unable to invoke '%s'\n", methodToInvoke.get_name().to_string().c_str());
-	}
-	else if (result.is_type<void>() == false)
-	{
-		if (result.is_type<int>())
-		{
-			lua_pushnumber(L, result.get_value<int>());
-			numberOfReturnValues++;
-		}
-		else if (result.is_type<short>())
-		{
-			lua_pushnumber(L, result.get_value<short>());
-			numberOfReturnValues++;
-		}
-		else
-		{
-			luaL_error(L,
-				"unhandled return type '%s' from native method '%s'\n",
-				result.get_type().get_name().to_string().c_str(),
-				methodToInvoke.get_name().to_string().c_str());
-		}
-	}
-	return numberOfReturnValues;
+	return ToLua(L, result);
 }
 
 int CallGlobalFromLua(lua_State* L)
@@ -178,7 +185,6 @@ int IndexUserDatum(lua_State* L)
 		luaL_error(L, "Expected a name of a native property or method when indexing native type '%s'", typeName);
 	}
 
-	//rttr::variant& ud = *(rttr::variant*)lua_touserdata(L, 1);
 	const char* fieldName = lua_tostring(L, -1);
 	rttr::method m = typeInfo.get_method(fieldName);
 	if (m.is_valid())
@@ -189,7 +195,18 @@ int IndexUserDatum(lua_State* L)
 		return 1;
 	}
 
-	luaL_error(L, "TODO: need to check to see if '%s' is a property of  '%s'", fieldName, typeName);
+	rttr::property p = typeInfo.get_property(fieldName);
+	if (p.is_valid())
+	{
+		rttr::variant& ud = *(rttr::variant*)lua_touserdata(L, 1);
+		rttr::variant result = p.get_value(ud);
+		if (result.is_valid())
+		{
+			return ToLua(L, result);
+		}
+	}
+
+	luaL_error(L, "TODO: need to check to see if '%s' is a uservalue of  '%s'", fieldName, typeName);
 
 	return 0;
 }
