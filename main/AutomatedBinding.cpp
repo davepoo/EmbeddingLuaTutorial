@@ -18,6 +18,10 @@ constexpr char* LUA_SCRIPT = R"(
 		local x = spr.x
 		spr:Move( xplusy + x, xplusy )
 		spr:Draw()
+		spr.zzzz = 42
+		local z = spr.zzzz
+		spr:Move( z, z )
+		spr:Draw()
 		)";
 
 /*! \brief Takes the result and puts it onto the Lua stack
@@ -180,12 +184,12 @@ int IndexUserDatum(lua_State* L)
 		luaL_error(L, "Expected a userdatum on the lua stack when indexing native type '%s'", typeName);
 	}
 
-	if (lua_isstring(L, -1) == false)
+	if (lua_isstring(L, 2) == false)
 	{
 		luaL_error(L, "Expected a name of a native property or method when indexing native type '%s'", typeName);
 	}
 
-	const char* fieldName = lua_tostring(L, -1);
+	const char* fieldName = lua_tostring(L, 2);
 	rttr::method m = typeInfo.get_method(fieldName);
 	if (m.is_valid())
 	{
@@ -206,8 +210,41 @@ int IndexUserDatum(lua_State* L)
 		}
 	}
 
-	luaL_error(L, "TODO: need to check to see if '%s' is a uservalue of  '%s'", fieldName, typeName);
+	//if it's not a method or property then return the uservalue
+	lua_getuservalue(L, 1);
+	lua_pushvalue(L, 2);
+	lua_gettable(L, -2);
+	return 1;
+}
 
+int NewIndexUserDatum(lua_State* L)
+{
+	const char* typeName = (const char*)lua_tostring(L, lua_upvalueindex(1));
+	rttr::type typeInfo = rttr::type::get_by_name(typeName);
+	if (lua_isuserdata(L, 1) == false)
+	{
+		luaL_error(L, "Expected a userdatum on the lua stack when indexing native type '%s'", typeName);
+	}
+
+	if (lua_isstring(L, 2) == false)
+	{
+		luaL_error(L, "Expected a name of a native property or method when indexing native type '%s'", typeName);
+	}
+
+	// 3 - the value we are writing to the object
+
+	const char* fieldName = lua_tostring(L, 2);
+	rttr::property p = typeInfo.get_property(fieldName);
+	if (p.is_valid())
+	{
+		luaL_error(L, "TODO: need to write to native property '%s' on type '%s'", fieldName, typeName);
+	}
+
+	//if it wasn't a property then set it as a uservalue
+	lua_getuservalue(L, 1);
+	lua_pushvalue(L, 2);
+	lua_pushvalue(L, 3);
+	lua_settable(L, -3);
 	return 0;
 }
 
@@ -263,6 +300,11 @@ void AutomatedBindingTutorial()
 			lua_pushstring(L, "__index");
 			lua_pushstring(L, typeName);
 			lua_pushcclosure(L, IndexUserDatum, 1 );
+			lua_settable(L, -3);
+
+			lua_pushstring(L, "__newindex");
+			lua_pushstring(L, typeName);
+			lua_pushcclosure(L, NewIndexUserDatum, 1);
 			lua_settable(L, -3);
 		}
 	}
