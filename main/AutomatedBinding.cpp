@@ -22,6 +22,8 @@ constexpr char* LUA_SCRIPT = R"(
 		local z = spr.zzzz
 		spr:Move( z, z )
 		spr:Draw()
+		spr.x = 10
+		spr:Draw()
 		)";
 
 /*! \brief Takes the result and puts it onto the Lua stack
@@ -237,7 +239,36 @@ int NewIndexUserDatum(lua_State* L)
 	rttr::property p = typeInfo.get_property(fieldName);
 	if (p.is_valid())
 	{
-		luaL_error(L, "TODO: need to write to native property '%s' on type '%s'", fieldName, typeName);
+		rttr::variant& ud = *(rttr::variant*)lua_touserdata(L, 1);
+		int luaType = lua_type(L, 3);
+		switch (luaType)
+		{
+		case LUA_TNUMBER:
+			if (p.get_type() == rttr::type::get<int>())
+			{
+				int val = (int)lua_tonumber(L, 3);
+				assert( p.set_value(ud, val) );
+			}
+			else if (p.get_type() == rttr::type::get<short>())
+			{
+				short val = (short)lua_tonumber(L, 3);
+				assert(p.set_value(ud, val));
+			}
+			else
+			{
+				luaL_error(L, 
+					"Cannot set the value '%s' on this type '%s', we didn't recognise the native type '%s'", 
+					fieldName, typeName, p.get_type().get_name().to_string().c_str() );
+			}
+			break;
+		default:
+			luaL_error(L, 
+				"Cannot set the value '%s' on this type '%s', we didnt recognise the lua type '%s'", 
+				fieldName, typeName, lua_typename(L, luaType) );
+			break;
+		}
+
+		return 0;
 	}
 
 	//if it wasn't a property then set it as a uservalue
