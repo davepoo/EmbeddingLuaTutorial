@@ -24,6 +24,23 @@ constexpr char* LUA_SCRIPT = R"(
 		spr:Draw()
 		spr.x = 10
 		spr:Draw()
+
+		function Foo3( x, y, z )
+			Global.HelloWorld3( x, y, z )	
+		end
+
+		function Foo2( x, y )
+			Global.HelloWorld3( x, y, y )	
+		end
+
+		function Foo1( x )
+			Global.HelloWorld3( x, x, x )	
+		end
+
+		function Foo( )
+			Global.HelloWorld3( 42, 44, 43 )	
+		end
+
 		)";
 
 /*! \brief Takes the result and puts it onto the Lua stack
@@ -55,6 +72,44 @@ int ToLua( lua_State* L, rttr::variant& result )
 		}
 	}
 	return numberOfReturnValues;
+}
+
+int PutOnLuaStack( lua_State* L )
+{
+	return 0;
+}
+
+template< typename T >
+int PutOnLuaStack( lua_State* L, T toPutOnStack )
+{
+	rttr::variant v( toPutOnStack );
+	return ToLua( L, v );
+}
+
+template< typename T, typename... T2 >
+int PutOnLuaStack( lua_State* L, T toPutOnStack, T2... moreArgs )
+{
+	return PutOnLuaStack( L, toPutOnStack ) + PutOnLuaStack( L, moreArgs... );
+}
+
+template< typename... ARGS >
+void CallScriptFunction( lua_State* L, const char* funcName, ARGS... args )
+{
+	lua_getglobal( L, funcName );
+	if ( lua_type( L, -1 ) == LUA_TFUNCTION )
+	{
+		int numArgs = PutOnLuaStack(L, args... );
+		if ( lua_pcall( L, numArgs, 0, 0 ) != 0 )
+		{
+			printf( "unable to call script function '%s', '%s'\n", funcName, lua_tostring(L, -1) );
+			luaL_error( L, "unable to call script function '%s', '%s'", funcName, lua_tostring( L, -1 ) );
+		}
+	}
+	else
+	{
+		printf( "unknown script function '%s'\n", funcName );
+		luaL_error( L, "unknown script function '%s'", funcName );
+	}
 }
 
 /*! \brief Invoke #methodToInvoke on #object, passing the arguments to the method from Lua and leave the result on the Lua stack.
@@ -279,6 +334,79 @@ int NewIndexUserDatum(lua_State* L)
 	return 0;
 }
 
+lua_State* CreateScript( ArenaAllocator& pool )
+{
+	//open the Lua state using our memory pool
+	lua_State* L = lua_newstate( ArenaAllocator::l_alloc, &pool );
+
+	lua_newtable( L );
+	lua_pushvalue( L, -1 );
+	lua_setglobal( L, "Global" );
+
+	//binding global methods
+	lua_pushvalue( L, -1 );											//1
+	for ( auto& method : rttr::type::get_global_methods() )
+	{
+		lua_pushstring( L, method.get_name().to_string().c_str() );	//2
+		lua_pushlightuserdata( L, ( void* )&method );
+		lua_pushcclosure( L, CallGlobalFromLua, 1 );					//3 
+		lua_settable( L, -3 );										//1[2] = 3
+	}
+
+	//binding classes to Lua
+	for ( auto& classToRegister : rttr::type::get_types() )
+	{
+		if ( classToRegister.is_class() )
+		{
+			const std::string s = classToRegister.get_name().to_string();
+			const char* typeName = s.c_str();
+
+			lua_newtable( L );
+			lua_pushvalue( L, -1 );
+			lua_setglobal( L, classToRegister.get_name().to_string().c_str() );
+
+			lua_pushvalue( L, -1 );
+			lua_pushstring( L, typeName );
+			lua_pushcclosure( L, CreateUserDatum, 1 );
+			lua_setfield( L, -2, "new" );
+
+			//create the metatable & metamethods for this type
+			luaL_newmetatable( L, MetaTableName( classToRegister ).c_str() );
+			lua_pushstring( L, "__gc" );
+			lua_pushcfunction( L, DestroyUserDatum );
+			lua_settable( L, -3 );
+
+			lua_pushstring( L, "__index" );
+			lua_pushstring( L, typeName );
+			lua_pushcclosure( L, IndexUserDatum, 1 );
+			lua_settable( L, -3 );
+
+			lua_pushstring( L, "__newindex" );
+			lua_pushstring( L, typeName );
+			lua_pushcclosure( L, NewIndexUserDatum, 1 );
+			lua_settable( L, -3 );
+		}
+	}
+
+	return L;
+}
+
+int LoadScript( lua_State* L, const char* script )
+{
+	return luaL_loadstring( L, script );
+}
+
+int ExecuteScript( lua_State* L )
+{
+	return lua_pcall( L, 0, LUA_MULTRET, 0 );
+}
+
+void CloseScript( lua_State* L )
+{
+	lua_close( L );
+}
+
+/*! \brief TODO, move this into it's own file, this is our test application */
 void AutomatedBindingTutorial()
 {
 	printf("---- automated binding using run time type info -----\n");
@@ -288,65 +416,22 @@ void AutomatedBindingTutorial()
 	char memory[POOL_SIZE];
 	ArenaAllocator pool(memory, &memory[POOL_SIZE - 1]);
 
-	//open the Lua state using our memory pool
-	lua_State* L = lua_newstate(ArenaAllocator::l_alloc, &pool);
+	//Create our Lua Script
+	lua_State* L = CreateScript( pool );
 
-	lua_newtable(L);
-	lua_pushvalue(L, -1);
-	lua_setglobal(L, "Global");
-
-	//binding global methods
-	lua_pushvalue(L, -1);											//1
-	for (auto& method : rttr::type::get_global_methods() )
-	{
-		lua_pushstring(L, method.get_name().to_string().c_str());	//2
-		lua_pushlightuserdata(L, (void*)&method);
-		lua_pushcclosure(L, CallGlobalFromLua, 1);					//3 
-		lua_settable(L, -3);										//1[2] = 3
-	}
-
-	//binding classes to Lua
-	for (auto& classToRegister : rttr::type::get_types())
-	{
-		if (classToRegister.is_class())
-		{
-			const std::string s = classToRegister.get_name().to_string();
-			const char* typeName = s.c_str();
-
-			lua_newtable(L);
-			lua_pushvalue(L, -1);
-			lua_setglobal(L, classToRegister.get_name().to_string().c_str());
-
-			lua_pushvalue(L, -1);
-			lua_pushstring(L, typeName);
-			lua_pushcclosure(L, CreateUserDatum, 1);
-			lua_setfield(L, -2, "new");
-
-			//create the metatable & metamethods for this type
-			luaL_newmetatable(L, MetaTableName(classToRegister).c_str());
-			lua_pushstring(L, "__gc");
-			lua_pushcfunction(L, DestroyUserDatum);
-			lua_settable(L, -3);
-
-			lua_pushstring(L, "__index");
-			lua_pushstring(L, typeName);
-			lua_pushcclosure(L, IndexUserDatum, 1 );
-			lua_settable(L, -3);
-
-			lua_pushstring(L, "__newindex");
-			lua_pushstring(L, typeName);
-			lua_pushcclosure(L, NewIndexUserDatum, 1);
-			lua_settable(L, -3);
-		}
-	}
-
-	//execute the lua script
-	int doResult = luaL_dostring(L, LUA_SCRIPT);
-	if (doResult != LUA_OK)
+	//load & execute the lua script
+	LoadScript( L, LUA_SCRIPT );
+	if ( ExecuteScript( L ) != LUA_OK)
 	{
 		printf("Error: %s\n", lua_tostring(L, -1));
 	}
 
+	//call our script functions
+	CallScriptFunction( L, "Foo3", 1, 2, 3 );
+	CallScriptFunction( L, "Foo2", 1, 2 );
+	CallScriptFunction( L, "Foo1", 1 );
+	CallScriptFunction( L, "Foo" );
+
 	//close the Lua state
-	lua_close(L);
+	CloseScript( L );
 }
