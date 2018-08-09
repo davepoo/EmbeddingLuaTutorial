@@ -1,50 +1,8 @@
 #include "AutomatedBinding.h"
 #include "ArenaAllocator.h"
-#include "lua.hpp"
 #include <cstdio>
 #include <assert.h>
-#include <rttr/registration>
 
-/*! \brief The Lua script, you would probably load this data from a .lua file. */
-constexpr char* LUA_SCRIPT = R"(
-		-- this is a lua script
-		Global.HelloWorld()
-		Global.HelloWorld2()
-		local c = Global.Add( 42, 43 )
-		local d = Global.Mul( c, 2 )
-		Global.HelloWorld3( d, 99, 111 )
-		local spr = Sprite.new()
-		local xplusy = spr:Move( 1, 2 )
-		local x = spr.x
-		spr:Move( xplusy + x, xplusy )
-		spr:Draw()
-		spr.zzzz = 42
-		local z = spr.zzzz
-		spr:Move( z, z )
-		spr:Draw()
-		spr.x = 10
-		spr:Draw()
-
-		function Foo3( x, y, z )
-			Global.HelloWorld3( x, y, z )	
-		end
-
-		function Foo2( x, y )
-			Global.HelloWorld3( x, y, y )	
-		end
-
-		function Foo1( x )
-			Global.HelloWorld3( x, x, x )	
-		end
-
-		function Foo( )
-			Global.HelloWorld3( 42, 44, 43 )	
-		end
-
-		)";
-
-/*! \brief Takes the result and puts it onto the Lua stack
-*	\return the number of values left on the stack. */
 int ToLua( lua_State* L, rttr::variant& result )
 {
 	int numberOfReturnValues = 0;
@@ -72,44 +30,6 @@ int ToLua( lua_State* L, rttr::variant& result )
 		}
 	}
 	return numberOfReturnValues;
-}
-
-int PutOnLuaStack( lua_State* L )
-{
-	return 0;
-}
-
-template< typename T >
-int PutOnLuaStack( lua_State* L, T toPutOnStack )
-{
-	rttr::variant v( toPutOnStack );
-	return ToLua( L, v );
-}
-
-template< typename T, typename... T2 >
-int PutOnLuaStack( lua_State* L, T toPutOnStack, T2... moreArgs )
-{
-	return PutOnLuaStack( L, toPutOnStack ) + PutOnLuaStack( L, moreArgs... );
-}
-
-template< typename... ARGS >
-void CallScriptFunction( lua_State* L, const char* funcName, ARGS... args )
-{
-	lua_getglobal( L, funcName );
-	if ( lua_type( L, -1 ) == LUA_TFUNCTION )
-	{
-		int numArgs = PutOnLuaStack(L, args... );
-		if ( lua_pcall( L, numArgs, 0, 0 ) != 0 )
-		{
-			printf( "unable to call script function '%s', '%s'\n", funcName, lua_tostring(L, -1) );
-			luaL_error( L, "unable to call script function '%s', '%s'", funcName, lua_tostring( L, -1 ) );
-		}
-	}
-	else
-	{
-		printf( "unknown script function '%s'\n", funcName );
-		luaL_error( L, "unknown script function '%s'", funcName );
-	}
 }
 
 /*! \brief Invoke #methodToInvoke on #object, passing the arguments to the method from Lua and leave the result on the Lua stack.
@@ -404,34 +324,4 @@ int ExecuteScript( lua_State* L )
 void CloseScript( lua_State* L )
 {
 	lua_close( L );
-}
-
-/*! \brief TODO, move this into it's own file, this is our test application */
-void AutomatedBindingTutorial()
-{
-	printf("---- automated binding using run time type info -----\n");
-
-	//create memory pool for Lua
-	constexpr int POOL_SIZE = 1024 * 20;
-	char memory[POOL_SIZE];
-	ArenaAllocator pool(memory, &memory[POOL_SIZE - 1]);
-
-	//Create our Lua Script
-	lua_State* L = CreateScript( pool );
-
-	//load & execute the lua script
-	LoadScript( L, LUA_SCRIPT );
-	if ( ExecuteScript( L ) != LUA_OK)
-	{
-		printf("Error: %s\n", lua_tostring(L, -1));
-	}
-
-	//call our script functions
-	CallScriptFunction( L, "Foo3", 1, 2, 3 );
-	CallScriptFunction( L, "Foo2", 1, 2 );
-	CallScriptFunction( L, "Foo1", 1 );
-	CallScriptFunction( L, "Foo" );
-
-	//close the Lua state
-	CloseScript( L );
 }

@@ -1277,5 +1277,6 @@ int main()
 		assert(spriteManager.numberOfSpritesMade == 3);
 	}
 
+	extern void AutomatedBindingTutorial();
 	AutomatedBindingTutorial();
 }
