@@ -104,6 +104,11 @@ constexpr char* LUA_SCRIPT = R"(
 		function Foo( )
 			Global.HelloWorld3( 42, 44, 43 )	
 		end
+		
+		function Render( sprite )
+			sprite.x = sprite.x + 10
+			sprite:Draw()
+		end
 
 		)";
 
@@ -128,10 +133,18 @@ void AutomatedBindingTutorial()
 	}
 
 	//call our script functions
-	CallScriptFunction( L, "Foo3", 1, 2, 3 );
-	CallScriptFunction( L, "Foo2", 1, 2 );
-	CallScriptFunction( L, "Foo1", 1 );
+	int one = 1;
+	int two = 2;
+	int three = 3;
+	CallScriptFunction( L, "Foo3", one, two, three );
+	CallScriptFunction( L, "Foo2", one, two );
+	CallScriptFunction( L, "Foo1", one );
 	CallScriptFunction( L, "Foo" );
+
+	Sprite sprite;
+	sprite.x = 100;
+	CallScriptFunction( L, "Render", sprite );
+	CallScriptFunction( L, "Render", sprite );
 
 	//close the Lua state
 	CloseScript( L );

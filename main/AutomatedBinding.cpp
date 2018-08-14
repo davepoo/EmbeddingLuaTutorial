@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <assert.h>
 
+int CreateUserDatumFromVariant( lua_State* L, const rttr::variant& v );
+
 int ToLua( lua_State* L, rttr::variant& result )
 {
 	int numberOfReturnValues = 0;
@@ -21,6 +23,10 @@ int ToLua( lua_State* L, rttr::variant& result )
 		{
 			lua_pushnumber(L, result.get_value<short>());
 			numberOfReturnValues++;
+		}
+		else if ( result.get_type().is_class() || result.get_type().is_pointer() )
+		{
+			numberOfReturnValues += CreateUserDatumFromVariant( L, result );
 		}
 		else
 		{
@@ -109,9 +115,32 @@ int CallGlobalFromLua(lua_State* L)
 /*! \return The meta table name for type t */
 std::string MetaTableName( const rttr::type& t )
 {
-	std::string metaTableName = t.get_name().to_string();
+	std::string metaTableName;
+	if ( t.is_pointer() )
+	{
+		metaTableName = t.get_raw_type().get_name().to_string();
+	}
+	else
+	{
+		metaTableName = t.get_name().to_string();
+	}
 	metaTableName.append("_MT_");
 	return metaTableName;
+}
+
+int CreateUserDatumFromVariant( lua_State* L, const rttr::variant& v )
+{
+	void* ud = lua_newuserdata( L, sizeof( rttr::variant ) );
+	int userDatumStackIndex = lua_gettop( L );
+	new (ud) rttr::variant( v );
+
+	luaL_getmetatable( L, MetaTableName( v.get_type() ).c_str() );
+	lua_setmetatable( L, userDatumStackIndex );
+
+	lua_newtable( L );
+	lua_setuservalue( L, userDatumStackIndex );
+
+	return 1;	//return the userdatum
 }
 
 int CreateUserDatum(lua_State* L)

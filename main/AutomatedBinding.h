@@ -19,20 +19,31 @@ inline int PutOnLuaStack( lua_State* )
 }
 
 template< typename T >
-inline int PutOnLuaStack( lua_State* L, T toPutOnStack )
+inline int PutOnLuaStack( lua_State* L, T& toPutOnStack )
 {
-	rttr::variant v( toPutOnStack );
-	return ToLua( L, v );
+	rttr::type typeOfT = rttr::type::get<T>();
+	if ( typeOfT.is_class() )
+	{
+		//pass-by-reference
+		rttr::variant v( &toPutOnStack );
+		return ToLua( L, v );
+	}
+	else
+	{
+		//pass-by-value
+		rttr::variant v( toPutOnStack );
+		return ToLua( L, v );
+	}
 }
 
 template< typename T, typename... T2 >
-inline int PutOnLuaStack( lua_State* L, T toPutOnStack, T2... moreArgs )
+inline int PutOnLuaStack( lua_State* L, T& toPutOnStack, T2&... moreArgs )
 {
 	return PutOnLuaStack( L, toPutOnStack ) + PutOnLuaStack( L, moreArgs... );
 }
 
 template< typename... ARGS >
-inline void CallScriptFunction( lua_State* L, const char* funcName, ARGS... args )
+inline void CallScriptFunction( lua_State* L, const char* funcName, ARGS&... args )
 {
 	lua_getglobal( L, funcName );
 	if ( lua_type( L, -1 ) == LUA_TFUNCTION )
