@@ -100,9 +100,8 @@ struct ArenaAllocator
 	}
 
 	void* Allocate(size_t sizeBytes)
-	{
-		size_t allocatedBytes = SizeToAllocate(sizeBytes);
-		if (allocatedBytes <= MIN_BLOCK_SIZE && m_freeListHead)
+	{		
+		if ( sizeBytes <= MIN_BLOCK_SIZE && m_freeListHead)
 		{
 			//printf("-- allocated from the freelist --\n");
 			void* ptr = m_freeListHead;
@@ -111,6 +110,7 @@ struct ArenaAllocator
 		}
 		else
 		{
+			size_t allocatedBytes = SizeToAllocate( sizeBytes );
 			m_curr = (char*)((uintptr_t)m_curr + (ALIGNMENT - 1) & ~(ALIGNMENT - 1));
 			if (m_curr + allocatedBytes <= m_end)
 			{
@@ -133,13 +133,12 @@ struct ArenaAllocator
 		{
 			size_t allocatedBytes = SizeToAllocate(osize);
 			//printf("DeAllocated %d bytes\n", (int)allocatedBytes);
-			if (allocatedBytes >= MIN_BLOCK_SIZE)
-			{
-				//printf("-- deallocated to the freelist --\n");
-				FreeList* newHead = static_cast<FreeList*>(ptr);
-				newHead->m_next = m_freeListHead;
-				m_freeListHead = newHead;
-			}
+			assert( allocatedBytes >= MIN_BLOCK_SIZE );			
+			//printf("-- deallocated to the freelist --\n");
+			FreeList* newHead = static_cast<FreeList*>(ptr);
+			newHead->m_next = m_freeListHead;
+			m_freeListHead = newHead;
+			
 		}
 		else
 		{
